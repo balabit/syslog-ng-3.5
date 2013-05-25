@@ -40,7 +40,7 @@
 
 #include <string.h>
 
-LogRewrite *last_rewrite;
+LogRewriteExpr *last_rewrite;
 
 }
 
@@ -88,7 +88,7 @@ rewrite_expr
             last_rewrite = log_rewrite_set_new($3);
             free($3);
           }
-          rewrite_expr_opts ')'                 { $$ = last_rewrite; }
+          rewrite_set_opts ')'                  { $$ = last_rewrite; }
 	| KW_SET_TAG '(' string ')'             { $$ = log_rewrite_set_tag_new($3, TRUE); free($3); }
 	| KW_CLEAR_TAG '(' string ')'           { $$ = log_rewrite_set_tag_new($3, FALSE); free($3); }
         | LL_IDENTIFIER
@@ -99,7 +99,7 @@ rewrite_expr
             p = plugin_find(configuration, context, $1);
             CHECK_ERROR(p, @1, "%s plugin %s not found", cfg_lexer_lookup_context_name_by_type(context), $1);
 
-            last_rewrite = (LogRewrite *) plugin_parse_config(p, configuration, &@1, NULL);
+            last_rewrite = (LogRewriteExpr *) plugin_parse_config(p, configuration, &@1, NULL);
             free($1);
             if (!last_rewrite)
               {
@@ -110,8 +110,7 @@ rewrite_expr
         ;
 
 rewrite_subst_opts
-        : rewrite_expr_opt rewrite_subst_opts
-        | rewrite_subst_opt rewrite_subst_opts
+        : rewrite_subst_opt rewrite_subst_opts
         |
         ;
 
@@ -123,17 +122,24 @@ rewrite_subst_opt
             free($3);
           }
         | KW_FLAGS '(' regexp_option_flags ')' { log_rewrite_subst_set_flags(last_rewrite, $3); }
+	| rewrite_value_opt
         ;
 
-rewrite_expr_opts
-        : rewrite_expr_opt rewrite_expr_opts
-        |
-        ;
+rewrite_set_opts
+	: rewrite_set_opt rewrite_set_opts
+	|
+	;
 
-rewrite_expr_opt
+rewrite_set_opt
+	: rewrite_value_opt
+	;
+
+rewrite_value_opt
         : KW_VALUE '(' string ')'
           {
             const gchar *p = $3;
+            LogRewriteValue *rewrite_value = (LogRewriteValue *) last_rewrite;
+
             if (p[0] == '$')
               {
                 msg_warning("Value references in rewrite rules should not use the '$' prefix, those are only needed in templates",
@@ -141,17 +147,21 @@ rewrite_expr_opt
                             NULL);
                 p++;
               }
-            last_rewrite->value_handle = log_msg_get_value_handle(p);
-            CHECK_ERROR(!log_msg_is_handle_macro(last_rewrite->value_handle), @3, "%s is read-only, it cannot be changed in rewrite rules", p);
+            rewrite_value->value_handle = log_msg_get_value_handle(p);
+            CHECK_ERROR(!log_msg_is_handle_macro(rewrite_value->value_handle), @3, "%s is read-only, it cannot be changed in rewrite rules", p);
 	    CHECK_ERROR(log_msg_is_value_name_valid(p), @3, "%s is not a valid name for a name-value pair, perhaps a misspelled .SDATA reference?", p);
             free($3);
           }
-        | KW_CONDITION '('
+	| rewrite_expr_opt
+	;
+
+rewrite_expr_opt
+        : KW_CONDITION '('
           {
             FilterExprNode *filter_expr;
 
             CHECK_ERROR(cfg_parser_parse(&filter_expr_parser, lexer, (gpointer *) &filter_expr, NULL), @1, NULL);
-            log_rewrite_set_condition(last_rewrite, filter_expr);
+            log_rewrite_expr_set_condition(last_rewrite, filter_expr);
           } ')'
         ;
 

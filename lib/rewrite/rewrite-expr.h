@@ -31,32 +31,45 @@
 #include "logmatcher.h"
 #include "filter/filter-expr.h"
 
-typedef struct _LogRewrite LogRewrite;
+typedef struct _LogRewriteExpr LogRewriteExpr;
+typedef struct _LogRewriteValue LogRewriteValue;
 
-struct _LogRewrite
+struct _LogRewriteExpr
 {
   LogPipe super;
-  NVHandle value_handle;
   FilterExprNode *condition;
-  void (*process)(LogRewrite *s, LogMessage **pmsg, const LogPathOptions *path_options);
+  void (*process)(LogRewriteExpr *s, LogMessage **pmsg, const LogPathOptions *path_options);
+  void (*log_evaluation_result)(LogRewriteExpr *self, LogMessage *msg);
   gchar *name;
 };
 
+struct _LogRewriteValue
+{
+  LogRewriteExpr super;
+  NVHandle value_handle;
+};
+
 /* LogRewrite, abstract class */
-void log_rewrite_set_condition(LogRewrite *s, FilterExprNode *condition);
-void log_rewrite_free_method(LogPipe *self);
+void log_rewrite_expr_set_condition(LogRewriteExpr *s, FilterExprNode *condition);
+void log_rewrite_expr_free_method(LogPipe *self);
+
+static inline void
+log_rewrite_expr_log_evaluation_result(LogRewriteExpr *self, LogMessage *msg)
+{
+  return self->log_evaluation_result(self, msg);
+}
 
 /* LogRewriteSet */
-LogRewrite *log_rewrite_set_new(const gchar *new_value);
+LogRewriteExpr *log_rewrite_set_new(const gchar *new_value);
 
 /* LogRewriteSubst */
-gboolean log_rewrite_subst_set_regexp(LogRewrite *s, const gchar *regexp);
-void log_rewrite_subst_set_matcher(LogRewrite *s, LogMatcher *matcher);
-void log_rewrite_subst_set_flags(LogRewrite *s, gint flags);
+gboolean log_rewrite_subst_set_regexp(LogRewriteExpr *s, const gchar *regexp);
+void log_rewrite_subst_set_matcher(LogRewriteExpr *s, LogMatcher *matcher);
+void log_rewrite_subst_set_flags(LogRewriteExpr *s, gint flags);
 
-LogRewrite *log_rewrite_subst_new(const gchar *replacement);
+LogRewriteExpr *log_rewrite_subst_new(const gchar *replacement);
 
 /* LogRewriteSetTag */
-LogRewrite *log_rewrite_set_tag_new(const gchar *tag_name, gboolean onoff);
+LogRewriteExpr *log_rewrite_set_tag_new(const gchar *tag_name, gboolean onoff);
 
 #endif

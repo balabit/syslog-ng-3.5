@@ -32,23 +32,22 @@
 /* rewrite */
 
 void
-log_rewrite_set_condition(LogRewrite *self, FilterExprNode *condition)
+log_rewrite_expr_set_condition(LogRewriteExpr *self, FilterExprNode *condition)
 {
   self->condition = condition;
 }
 
 static void
-log_rewrite_queue(LogPipe *s, LogMessage *msg, const LogPathOptions *path_options, gpointer user_data)
+log_rewrite_expr_queue(LogPipe *s, LogMessage *msg, const LogPathOptions *path_options, gpointer user_data)
 {
-  LogRewrite *self = (LogRewrite *) s;
+  LogRewriteExpr *self = (LogRewriteExpr *) s;
   gchar buf[128];
-  gssize length;
-  const gchar *value;
 
   if (self->condition && !filter_expr_eval(self->condition, msg))
     {
       msg_debug("Rewrite condition unmatched, skipping rewrite",
-                evt_tag_str("value", log_msg_get_value_name(self->value_handle, NULL)),
+                evt_tag_str("rule", self->name),
+                evt_tag_str("location", log_expr_node_format_location(s->expr_node, buf, sizeof(buf))),
                 NULL);
     }
   else
@@ -57,21 +56,15 @@ log_rewrite_queue(LogPipe *s, LogMessage *msg, const LogPathOptions *path_option
     }
   if (G_UNLIKELY(debug_flag))
     {
-      value = log_msg_get_value(msg, self->value_handle, &length);
-      msg_debug("Rewrite expression evaluation result",
-                evt_tag_str("value", log_msg_get_value_name(self->value_handle, NULL)),
-                evt_tag_printf("new_value", "%.*s", (gint) length, value),
-                evt_tag_str("rule", self->name),
-                evt_tag_str("location", log_expr_node_format_location(s->expr_node, buf, sizeof(buf))),
-                NULL);
+      log_rewrite_expr_log_evaluation_result(self, msg);
     }
   log_pipe_forward_msg(s, msg, path_options);
 }
 
 static gboolean
-log_rewrite_init_method(LogPipe *s)
+log_rewrite_expr_init_method(LogPipe *s)
 {
-  LogRewrite *self = (LogRewrite *) s;
+  LogRewriteExpr *self = (LogRewriteExpr *) s;
   GlobalConfig *cfg = log_pipe_get_config(s);
 
   if (self->condition && self->condition->init)
@@ -83,9 +76,9 @@ log_rewrite_init_method(LogPipe *s)
 }
 
 void
-log_rewrite_free_method(LogPipe *s)
+log_rewrite_expr_free_method(LogPipe *s)
 {
-  LogRewrite *self = (LogRewrite *) s;
+  LogRewriteExpr *self = (LogRewriteExpr *) s;
 
   if (self->condition)
     filter_expr_unref(self->condition);
@@ -95,16 +88,42 @@ log_rewrite_free_method(LogPipe *s)
 
 
 static void
-log_rewrite_init(LogRewrite *self)
+log_rewrite_expr_init(LogRewriteExpr *self)
 {
   log_pipe_init_instance(&self->super);
   /* indicate that the rewrite rule is changing the message */
-  self->super.free_fn = log_rewrite_free_method;
-  self->super.queue = log_rewrite_queue;
-  self->super.init = log_rewrite_init_method;
-  self->value_handle = LM_V_MESSAGE;
+  self->super.free_fn = log_rewrite_expr_free_method;
+  self->super.queue = log_rewrite_expr_queue;
+  self->super.init = log_rewrite_expr_init_method;
 }
 
+/* LogRewriteValue */
+
+static void
+log_rewrite_value_log_evaluation_result(LogRewriteExpr *s, LogMessage *msg)
+{
+  LogRewriteValue *self = (LogRewriteValue *) s;
+  gssize length;
+  const gchar *value;
+  gchar buf[128];
+
+  value = log_msg_get_value(msg, self->value_handle, &length);
+  msg_debug("Rewrite expression evaluation result",
+            evt_tag_printf("value", "%s", log_msg_get_value_name(self->value_handle, NULL)),
+            evt_tag_printf("new_value", "%.*s", (gint) length, value),
+            evt_tag_str("rule", self->super.name),
+            evt_tag_str("location", log_expr_node_format_location(self->super.super.expr_node, buf, sizeof(buf))),
+            NULL);
+
+}
+
+static void
+log_rewrite_value_init(LogRewriteValue *self)
+{
+  log_rewrite_expr_init(&self->super);
+  self->super.log_evaluation_result = log_rewrite_value_log_evaluation_result;
+  self->value_handle = LM_V_MESSAGE;
+}
 
 /* LogRewriteSet
  *
@@ -114,13 +133,13 @@ typedef struct _LogRewriteSubst LogRewriteSubst;
 
 struct _LogRewriteSubst
 {
-  LogRewrite super;
+  LogRewriteValue super;
   LogMatcher *matcher;
   LogTemplate *replacement;
 };
 
 void
-log_rewrite_subst_process(LogRewrite *s, LogMessage **pmsg, const LogPathOptions *path_options)
+log_rewrite_subst_process(LogRewriteExpr *s, LogMessage **pmsg, const LogPathOptions *path_options)
 {
   LogRewriteSubst *self = (LogRewriteSubst *) s;
   const gchar *value;
@@ -140,7 +159,7 @@ log_rewrite_subst_process(LogRewrite *s, LogMessage **pmsg, const LogPathOptions
 }
 
 void
-log_rewrite_subst_set_matcher(LogRewrite *s, LogMatcher *matcher)
+log_rewrite_subst_set_matcher(LogRewriteExpr *s, LogMatcher *matcher)
 {
   LogRewriteSubst *self = (LogRewriteSubst*) s;
   gint flags = 0;
@@ -156,7 +175,7 @@ log_rewrite_subst_set_matcher(LogRewrite *s, LogMatcher *matcher)
 }
 
 gboolean
-log_rewrite_subst_set_regexp(LogRewrite *s, const gchar *regexp)
+log_rewrite_subst_set_regexp(LogRewriteExpr *s, const gchar *regexp)
 {
   LogRewriteSubst *self = (LogRewriteSubst*) s;
 
@@ -167,7 +186,7 @@ log_rewrite_subst_set_regexp(LogRewrite *s, const gchar *regexp)
 }
 
 void
-log_rewrite_subst_set_flags(LogRewrite *s, gint flags)
+log_rewrite_subst_set_flags(LogRewriteExpr *s, gint flags)
 {
   LogRewriteSubst *self = (LogRewriteSubst*)s;
 
@@ -186,8 +205,8 @@ log_rewrite_subst_clone(LogPipe *s)
   cloned = (LogRewriteSubst *) log_rewrite_subst_new(self->replacement->template);
   cloned->matcher = log_matcher_ref(self->matcher);
   cloned->super.value_handle = self->super.value_handle;
-  cloned->super.condition = self->super.condition;
-  return &cloned->super.super;
+  cloned->super.super.condition = self->super.super.condition;
+  return &cloned->super.super.super;
 }
 
 
@@ -198,23 +217,23 @@ log_rewrite_subst_free(LogPipe *s)
 
   log_matcher_unref(self->matcher);
   log_template_unref(self->replacement);
-  log_rewrite_free_method(s);
+  log_rewrite_expr_free_method(s);
 }
 
-LogRewrite *
+LogRewriteExpr *
 log_rewrite_subst_new(const gchar *replacement)
 {
   LogRewriteSubst *self = g_new0(LogRewriteSubst, 1);
 
-  log_rewrite_init(&self->super);
+  log_rewrite_value_init(&self->super);
 
-  self->super.super.free_fn = log_rewrite_subst_free;
-  self->super.super.clone = log_rewrite_subst_clone;
-  self->super.process = log_rewrite_subst_process;
+  self->super.super.super.free_fn = log_rewrite_subst_free;
+  self->super.super.super.clone = log_rewrite_subst_clone;
+  self->super.super.process = log_rewrite_subst_process;
 
   self->replacement = log_template_new(configuration, NULL);
   log_template_compile(self->replacement, replacement, NULL);
-  return &self->super;
+  return &self->super.super;
 }
 
 /* LogRewriteSet
@@ -225,12 +244,12 @@ typedef struct _LogRewriteSet LogRewriteSet;
 
 struct _LogRewriteSet
 {
-  LogRewrite super;
+  LogRewriteValue super;
   LogTemplate *value_template;
 };
 
 static void
-log_rewrite_set_process(LogRewrite *s, LogMessage **pmsg, const LogPathOptions *path_options)
+log_rewrite_set_process(LogRewriteExpr *s, LogMessage **pmsg, const LogPathOptions *path_options)
 {
   LogRewriteSet *self = (LogRewriteSet *) s;
   GString *result;
@@ -251,8 +270,8 @@ log_rewrite_set_clone(LogPipe *s)
 
   cloned = (LogRewriteSet *) log_rewrite_set_new(self->value_template->template);
   cloned->super.value_handle = self->super.value_handle;
-  cloned->super.condition = self->super.condition;
-  return &cloned->super.super;
+  cloned->super.super.condition = self->super.super.condition;
+  return &cloned->super.super.super;
 }
 
 static void
@@ -261,22 +280,22 @@ log_rewrite_set_free(LogPipe *s)
   LogRewriteSet *self = (LogRewriteSet *) s;
 
   log_template_unref(self->value_template);
-  log_rewrite_free_method(s);
+  log_rewrite_expr_free_method(s);
 }
 
-LogRewrite *
+LogRewriteExpr *
 log_rewrite_set_new(const gchar *new_value)
 {
   LogRewriteSet *self = g_new0(LogRewriteSet, 1);
 
-  log_rewrite_init(&self->super);
-  self->super.super.free_fn = log_rewrite_set_free;
-  self->super.super.clone = log_rewrite_set_clone;
-  self->super.process = log_rewrite_set_process;
+  log_rewrite_value_init(&self->super);
+  self->super.super.super.free_fn = log_rewrite_set_free;
+  self->super.super.super.clone = log_rewrite_set_clone;
+  self->super.super.process = log_rewrite_set_process;
 
   self->value_template = log_template_new(configuration, NULL);
   log_template_compile(self->value_template, new_value, NULL);
-  return &self->super;
+  return &self->super.super;
 }
 
 /* LogRewriteSetTag
@@ -287,18 +306,32 @@ typedef struct _LogRewriteSetTag LogRewriteSetTag;
 
 struct _LogRewriteSetTag
 {
-  LogRewrite super;
+  LogRewriteExpr super;
   LogTagId tag_id;
   gboolean value;
 };
 
 static void
-log_rewrite_set_tag_process(LogRewrite *s, LogMessage **pmsg, const LogPathOptions *path_options)
+log_rewrite_set_tag_process(LogRewriteExpr *s, LogMessage **pmsg, const LogPathOptions *path_options)
 {
   LogRewriteSetTag *self = (LogRewriteSetTag *) s;
 
   log_msg_make_writable(pmsg, path_options);
   log_msg_set_tag_by_id_onoff(*pmsg, self->tag_id, self->value);
+}
+
+static void
+log_rewrite_set_tag_log_evaluation_result(LogRewriteExpr *s, LogMessage *msg)
+{
+  LogRewriteSetTag *self = (LogRewriteSetTag *) s;
+  gchar buf[128];
+
+  msg_debug("Message tag changed",
+            evt_tag_str("tag", log_tags_get_by_id(self->tag_id)),
+            evt_tag_int("value", self->value),
+            evt_tag_str("rule", self->super.name),
+            evt_tag_str("location", log_expr_node_format_location(self->super.super.expr_node, buf, sizeof(buf))),
+            NULL);
 }
 
 static LogPipe *
@@ -307,25 +340,20 @@ log_rewrite_set_tag_clone(LogPipe *s)
   LogRewriteSetTag *self = (LogRewriteSetTag *) s;
   LogRewriteSetTag *cloned;
 
-  cloned = g_new0(LogRewriteSetTag, 1);
-  log_rewrite_init(&cloned->super);
-  cloned->super.super.clone = log_rewrite_set_tag_clone;
-  cloned->super.process = log_rewrite_set_tag_process;
+  cloned = (LogRewriteSetTag *) log_rewrite_set_tag_new(log_tags_get_by_id(self->tag_id), self->value);
   cloned->super.condition = self->super.condition;
-
-  cloned->tag_id = self->tag_id;
-  cloned->value = self->value;
   return &cloned->super.super;
 }
 
-LogRewrite *
+LogRewriteExpr *
 log_rewrite_set_tag_new(const gchar *tag_name, gboolean value)
 {
   LogRewriteSetTag *self = g_new0(LogRewriteSetTag, 1);
 
-  log_rewrite_init(&self->super);
+  log_rewrite_expr_init(&self->super);
   self->super.super.clone = log_rewrite_set_tag_clone;
   self->super.process = log_rewrite_set_tag_process;
+  self->super.log_evaluation_result = log_rewrite_set_tag_log_evaluation_result;
   self->tag_id = log_tags_get_by_name(tag_name);
   self->value = value;
   return &self->super;
