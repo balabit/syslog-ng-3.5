@@ -14,7 +14,9 @@ modules_affile_libaffile_la_SOURCES	=			\
 	modules/affile/affile-grammar.y				\
 	modules/affile/affile-parser.c				\
 	modules/affile/affile-parser.h				\
-	modules/affile/affile-plugin.c
+	modules/affile/affile-plugin.c				\
+	modules/affile/filemonitor.c				\
+	modules/affile/filemonitor.h
 
 BUILT_SOURCES				+= 			\
 	modules/affile/affile-grammar.y				\
@@ -33,3 +35,5 @@ modules_affile_libaffile_la_DEPENDENCIES= $(MODULE_DEPS_LIBS)
 
 modules/affile modules/affile/ mod-affile mod-file: modules/affile/libaffile.la
 .PHONY: modules/affile/ mod-affile mod-file
+
+include modules/affile/tests/Makefile.am
