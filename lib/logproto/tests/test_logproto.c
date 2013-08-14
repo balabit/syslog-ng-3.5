@@ -70,6 +70,7 @@ test_log_proto(void)
   test_log_proto_regexp_multiline_server();
   test_log_proto_dgram_server();
   test_log_proto_framed_server();
+  test_log_proto_http_server();
 }
 
 int
