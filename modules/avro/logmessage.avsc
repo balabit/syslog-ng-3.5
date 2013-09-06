@@ -1,0 +1,182 @@
+{
+	"type" : "record",
+	"name" : "LOG_MSG",
+	"namespace" : "hu.balabit",
+	"fields" : 
+	[
+		{
+			"name" : "_LOG_MSG",
+			"type" :
+			[
+				{
+					"type" : "record",
+					"name" : "SYSLOG_MSG",
+					"fields" : [
+						{
+				      "name" : "HEADER",
+				      "type" : {
+				        "name" : "_HEADER",
+				        "type" : "record",
+				        "fields" : [
+				          { 
+				          	"name" : "PRIORITY",
+				          	"type" : 
+				          	[
+				          	 	"int", 
+				          	 	"null"
+				          	] 
+				          },
+				          {
+				          	"name" : "VERSION",
+				          	"type" : 
+				          	[
+				          		"int",
+				          		"null"
+				          	]
+				          },
+				          {
+				          	"name" : "TIMESTAMP",
+				          	"type" :
+				          	[
+				          		"string",
+				          		"null"
+				          	]
+				          },
+				          {
+				          	"name" : "HOSTNAME",
+				          	"type" :
+				          	[
+				          		"string",
+				          		"null"
+				          	]
+				          },
+				          {
+				          	"name" : "APP_NAME",
+				          	"type" :
+				          	[
+				          		"string",
+				          		"null"
+				          	]
+				          },
+				          {
+				          	"name" : "PROCID",
+				          	"type" :
+				          	[
+				          		"string",
+				          		"null"
+				          	]
+				          },
+				          {
+				          	"name" : "MSGID",
+				          	"type" :
+				          	[
+				          		"string",
+				          		"null"
+				          	]
+				          }
+				        ]
+							}
+						},
+				 		{
+							"name" : "STRUCTURED_DATA",
+							"type" : [
+								{
+									"type" : "array",
+									"items" : 
+									{
+										"name" : "SD_ELEMENT",
+										"type" : "record",
+										"fields" : 
+										[
+											{ 
+												"name" : "SD_ID",
+												"type" : 
+												[
+													"string",
+													"null"
+												]
+											},
+											{
+												"name" : "SD_PARAM",
+												"type" : [
+													{
+														"name" : 		"_SD_PARAM",
+														"type" : 		"map",
+														"values" : 	"string"
+													},
+													"null" 
+												]
+											}
+										]
+									}
+								},
+								"null"
+							]
+						},
+						{
+							"name" : "MSG",
+							"type" : 
+							[
+								"string",
+								"null"
+							]
+						}
+					]
+				},
+				{
+					"type" : "record",
+					"name" : "LEGACY_SYSLOG_MSG",
+					"fields" : [
+						{
+							"name" : "LS_PRI",
+							"type" : "int"
+						},
+						{
+							"name" : "LS_HEADER",
+							"type" : {
+								"name" : "_LS_HEADER",
+								"type" : "record",
+								"fields" : [
+									{
+										"name" : "LS_TIMESTAMP",
+										"type" : "string"
+									},
+									{
+										"name" : "LS_HOSTNAME",
+										"type" : "string"
+									}
+								]
+							}
+						},
+						{
+							"name" : "LS_MSG",
+							"type" : {
+								"name" : "_LS_MSG",
+								"type" : "record",
+								"fields" : [
+									{
+										"name" : "LS_TAG",
+										"type" : 
+										[
+											"string",
+											"null"
+										]
+									},
+									{
+										"name" : "LS_CONTENT",
+										"type" :
+										[
+											"string",
+											"null"
+										]
+									}
+								]
+							}
+						}
+					]
+				}, 
+				"null"
+			]
+		}
+	]
+}
