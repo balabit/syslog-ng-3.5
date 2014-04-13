@@ -248,6 +248,7 @@ gen_next_message(FILE *source, char *buf, int buflen)
 
   while (1)
     {
+      ++lineno;
       temp = NULL;
       if (feof(source))
         {
@@ -255,6 +256,7 @@ gen_next_message(FILE *source, char *buf, int buflen)
           {
             // Restart reading from the beginning of the file
             rewind(source);
+            lineno = 0;
           }
           else
             return -1;
@@ -267,6 +269,7 @@ gen_next_message(FILE *source, char *buf, int buflen)
             // Restart reading from the beginning of the file
             rewind(source);
             temp = fgets(line, sizeof(line), source);
+            lineno = 1;
           }
           else
             return -1;
@@ -277,7 +280,7 @@ gen_next_message(FILE *source, char *buf, int buflen)
       if (parse_line(line, host, program, pid, &msg) > 0)
         break;
 
-      fprintf(stderr, "\rInvalid line %d                  \n", ++lineno);
+      fprintf(stderr, "\rInvalid line %d\n", lineno);
     }
   gettimeofday(&now, NULL);
   localtime_r(&now.tv_sec, &tm);
