@@ -62,6 +62,7 @@ static gint display_version;
 char *sdata_value = NULL;
 
 /* results */
+int ret = 0;
 guint64 sum_count;
 struct timeval sum_time;
 gint raw_message_length;
@@ -97,7 +98,10 @@ send_plain(void *user_data, void *buf, size_t length)
             ;
         }
       else
+      {
+        ret = errno;
         return -1;
+      }
     }
   return (cc);
 }
@@ -483,6 +487,7 @@ gen_messages(send_data_t send_func, void *send_func_ud, int thread_id, FILE *rea
       if (rc < 0)
         {
           fprintf(stderr, "Send error %s, results may be skewed.\n", strerror(errno));
+          ret = rc;
           break;
         }
       buckets--;
@@ -572,7 +577,10 @@ idle_thread(gpointer st)
 
   sock = connect_server();
   if (sock < 0)
+  {
+    ret = sock;
     goto error;
+  }
   g_mutex_lock(thread_lock);
   connect_finished++;
   if (connect_finished == active_connections + idle_connections)
@@ -608,7 +616,10 @@ active_thread(gpointer st)
 
   sock = connect_server();
   if (sock < 0)
+  {
+    ret = sock;
     goto error;
+  }
   g_mutex_lock(thread_lock);
   connect_finished++;
   if (connect_finished == active_connections + idle_connections)
@@ -710,7 +721,6 @@ version(void)
 int
 main(int argc, char *argv[])
 {
-  int ret = 0;
   GError *error = NULL;
   GOptionContext *ctx = NULL;
   int i;
